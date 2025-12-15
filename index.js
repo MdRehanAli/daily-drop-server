@@ -78,36 +78,91 @@ async function run() {
             res.send(result);
         })
 
-        // Payment Related Api 
-        app.post('/create-checkout-session', async (req, res) => {
+        // Payment Related Api same page 
+        app.post('/payment-checkout-session', async (req, res) => {
             const paymentInfo = req.body;
-            const amount = parseInt(paymentInfo.cost) * 100;
+            const amount = parseFloat(paymentInfo.cost) * 100;
 
             const session = await stripe.checkout.sessions.create({
                 line_items: [
                     {
+                        // Provide the exact Price ID (for example, price_1234) of the product you want to sell
                         price_data: {
-                            currency: 'USD',
+                            currency: 'usd',
                             unit_amount: amount,
                             product_data: {
-                                name: paymentInfo.parcelName
+                                name: `Please Pay for ${paymentInfo.parcelName}`
                             }
                         },
                         quantity: 1,
                     },
                 ],
-                customer_email: paymentInfo.senderEmail,
                 mode: 'payment',
                 metadata: {
                     parcelId: paymentInfo.parcelId,
                 },
-                success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success`,
+                customer_email: paymentInfo.senderEmail,
+                success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
                 cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
             })
 
-            console.log(session);
-            res.send({ url: session.url });
+            res.send({ url: session.url })
         })
+
+        app.patch('/payment-success', async (req, res) => {
+            const sessionId = req.query.session_id;
+
+            const session = await stripe.checkout.sessions.retrieve(sessionId);
+            console.log('Session Retrieve:', session);
+            if(session.payment_status === 'paid'){
+                const id =  session.metadata.parcelId;
+                const query = {_id: new ObjectId(id)}
+                const update = {
+                    $set: {
+                        payment_status: 'paid'
+                    }
+                }
+
+                const result = await parcelsCollection.updateOne(query, update);
+                res.send(result);
+            }
+
+            res.send({ success: false });
+        })
+
+
+
+        //       Old Api 
+        // Payment Related Api 
+        // app.post('/create-checkout-session', async (req, res) => {
+        //     const paymentInfo = req.body;
+        //     const amount = parseInt(paymentInfo.cost) * 100;
+
+        //     const session = await stripe.checkout.sessions.create({
+        //         line_items: [
+        //             {
+        //                 price_data: {
+        //                     currency: 'USD',
+        //                     unit_amount: amount,
+        //                     product_data: {
+        //                         name: paymentInfo.parcelName
+        //                     }
+        //                 },
+        //                 quantity: 1,
+        //             },
+        //         ],
+        //         customer_email: paymentInfo.senderEmail,
+        //         mode: 'payment',
+        //         metadata: {
+        //             parcelId: paymentInfo.parcelId,
+        //         },
+        //         success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success`,
+        //         cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
+        //     })
+
+        //     console.log(session);
+        //     res.send({ url: session.url });
+        // })
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
