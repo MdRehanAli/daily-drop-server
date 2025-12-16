@@ -130,6 +130,21 @@ async function run() {
 
             const trackingId = generateTrackingId();
 
+            const transactionId = session.payment_intent;
+            const query = {
+                transactionId: transactionId
+            }
+
+            const paymentExist = await paymentCollection.findOne(query);
+            console.log(paymentExist);
+            if (paymentExist) {
+                return res.send({
+                    message: 'Already exists',
+                    transactionId,
+                    trackingId: paymentExist.trackingId
+                })
+            }
+
             if (session.payment_status === 'paid') {
                 const id = session.metadata.parcelId;
                 const query = { _id: new ObjectId(id) }
@@ -150,12 +165,13 @@ async function run() {
                     parcelName: session.metadata.parcelName,
                     transactionId: session.payment_intent,
                     paymentStatus: session.payment_status,
-                    paidAt: new Date()
+                    paidAt: new Date(),
+                    trackingId: trackingId
                 }
 
                 if (session.payment_status === 'paid') {
                     const resultPayment = await paymentCollection.insertOne(paymentHistory);
-                    res.send({ success: true, trackingId: trackingId, transactionId:session.payment_intent, modifyParcel: result, paymentInfo: resultPayment })
+                    res.send({ success: true, trackingId: trackingId, transactionId: session.payment_intent, modifyParcel: result, paymentInfo: resultPayment })
                 }
             }
 
@@ -195,6 +211,20 @@ async function run() {
         //     console.log(session);
         //     res.send({ url: session.url });
         // })
+
+        // Payment Related Api 
+        app.get('/payments', async (req, res) => {
+            const email = req.query.email;
+            const query = {}
+
+            if (email) {
+                query.customerEmail = email
+            }
+
+            const cursor = paymentCollection.find(query);
+            const result = await cursor.toArray();
+            res.send(result);
+        })
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
