@@ -1,3 +1,4 @@
 node_modules
 .env
 daily-drop24-firebase-adminsdk.json
+.vercel
